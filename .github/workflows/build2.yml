@@ -1,0 +1,43 @@
+name: Build mod 2
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descompactar o zip do mod
+        run: unzip -q *.zip
+
+      - name: Corrigir TWO_PI
+        run: sed -i 's/MathHelper\.TWO_PI/6.2831855f/g' RealWater/src/main/java/com/realwater/RealWaterClient.java
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.5
+
+      - name: Build
+        working-directory: RealWater
+        run: |
+          gradle build --no-daemon --console=plain > build.log 2>&1 && code=0 || code=$?
+          if [ "$code" -ne 0 ]; then
+            errs=$(grep -A2 'error:' build.log | head -30)
+            if [ -z "$errs" ]; then errs=$(tail -40 build.log); fi
+            msg=$(printf '%s\n' "$errs" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Erros do Java::$msg"
+          fi
+          exit $code
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: realwater-jar
+          path: RealWater/build/libs/realwater-1.0.0.jar
